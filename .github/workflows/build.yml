@@ -39,21 +39,15 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          args=(-S . -B build/ci -DCMAKE_BUILD_TYPE=Release)
+          args=(-S . -B build/ci -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON)
           if [ -n "$RELEASE_VERSION" ]; then
             args+=("-DMYTOOLS_VERSION=$RELEASE_VERSION")
           fi
           cmake "${args[@]}"
       - name: Build
         run: cmake --build build/ci --config Release --parallel
-      - name: Smoke test executable
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = Windows ]; then
-            ./bin/Release/kasm.exe
-          else
-            ./bin/kasm
-          fi
+      - name: Run CTest
+        run: ctest --test-dir build/ci -C Release --output-on-failure --no-tests=error --parallel 2
       - name: Package
         working-directory: build/ci
         run: cpack -C Release

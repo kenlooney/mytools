@@ -10,6 +10,9 @@ project(
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
+include(CTest)
+
+add_subdirectory(libs)
 add_subdirectory(tools)
 
 include(GNUInstallDirs)
