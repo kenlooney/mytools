@@ -55,6 +55,10 @@ The initial tests live in `tools/kasm/tests`:
   exits successfully, and reports the correct path, byte length, and content.
 - `kasm.requires_input`: fails without an argument and prints usage.
 - `kasm.missing_file`: fails for a nonexistent file and prints a load error.
+- `kasm.cursor`: runs a separate test executable linked to `common` and checks
+  byte values and line/column positions for the `a\nb\n` build fixture. CMake
+  configures it with LF line endings and a final newline so results are
+  consistent on Windows and Linux.
 
 Tests check exit status and output together, with timeouts. They are labeled
 `kasm`, `cli`, and `input` for filtering. Add future cases alongside the owning
@@ -107,6 +111,14 @@ arguments and expected output there. Also update the exit-status check:
 currently only `loads_input` expects success; all other cases expect failure.
 The checker currently expects exact stdout and empty stderr, so adjust those
 assertions if the new behavior intentionally changes that contract.
+
+To test library code that `kasm` does not call yet, use a separate executable,
+as in [cursor_test.c](tools/kasm/tests/cursor_test.c). Link it to `common` and
+pass `$<TARGET_FILE:kasm_cursor_test>` to its checker, rather than running
+`kasm` with `TEST_CASE=loads_input`. The
+[cursor checker](tools/kasm/tests/check_cursor.cmake) checks the executable's
+exit status and exact byte-position output. Note that `source_load` returns
+`0` on success and a nonzero value on failure.
 
 For another tool or a library, create its own `tests/CMakeLists.txt` and include
 it from the component's CMake file inside `if(BUILD_TESTING)`. Register either

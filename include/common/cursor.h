@@ -13,26 +13,18 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-#include <stdio.h>
-#include "common/source.h"
-#include <stdlib.h>
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: %s <source_file>\n", argv[0]);
-        return -1;
-    }
+#ifndef COMMON_CURSOR_H
+#define COMMON_CURSOR_H
 
-    Source source;
-    if (source_load(&source, argv[1]) != 0) {
-        printf("Failed to load source file: %s\n", argv[1]);
-        return -1;
-    }
+#include "source.h"
 
-    printf("Loaded source file: %s\n", source.path);
-    printf("Source length: %zu\n", source.length);
-    printf("Source content:\n%s\n", source.text);
+typedef struct {
+    const Source *source;
+    size_t offset, line, column;
+} Cursor;
 
-    free(source.text);
+Cursor cursor_start(const Source *source);
+char cursor_peek(const Cursor *cursor);
+void cursor_advance(Cursor *cursor);
 
-    return 0;
-}
+#endif // COMMON_CURSOR_H
