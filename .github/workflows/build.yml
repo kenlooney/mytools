@@ -1,0 +1,92 @@
+name: Build packages
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      version:
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test release version selection
+        run: node --test .github/scripts/release-version.test.cjs
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm dpkg-dev
+      - name: Configure
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          args=(-S . -B build/ci -DCMAKE_BUILD_TYPE=Release)
+          if [ -n "$RELEASE_VERSION" ]; then
+            args+=("-DMYTOOLS_VERSION=$RELEASE_VERSION")
+          fi
+          cmake "${args[@]}"
+      - name: Build
+        run: cmake --build build/ci --config Release --parallel
+      - name: Smoke test executable
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            ./bin/Release/kasm.exe
+          else
+            ./bin/kasm
+          fi
+      - name: Package
+        working-directory: build/ci
+        run: cpack -C Release
+      - name: Verify package contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archives = @(Get-ChildItem build/ci -Filter 'mytools-v*.zip')
+          if ($archives.Count -ne 1) { throw 'Expected one ZIP package' }
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($archives[0].FullName)
+          try {
+            $names = @($zip.Entries | ForEach-Object { $_.FullName })
+            $executable = if ($env:RUNNER_OS -eq 'Windows') { '/bin/kasm.exe' } else { '/bin/kasm' }
+            foreach ($suffix in $executable, '/share/mytools/LICENSE', '/share/mytools/README.md') {
+              if (-not ($names | Where-Object { $_.EndsWith($suffix) })) {
+                throw "Missing package entry $suffix"
+              }
+            }
+          } finally {
+            $zip.Dispose()
+          }
+          if ($env:RUNNER_OS -eq 'Linux') {
+            foreach ($extension in 'deb', 'rpm') {
+              if (@(Get-ChildItem build/ci -Filter "mytools-v*.$extension").Count -ne 1) {
+                throw "Expected one $extension package"
+              }
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            build/ci/mytools-v*.zip
+            build/ci/mytools-v*.deb
+            build/ci/mytools-v*.rpm
